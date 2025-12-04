@@ -1,0 +1,153 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('webbai3:server');
+var http = require('http');
+
+// NHỮNG DÒNG MỚI ĐƯỢC THÊM VÀO CHO CHỨC NĂNG IOT
+const { SerialPort } = require('serialport');
+const { ReadlineParser } = require('@serialport/parser-readline');
+const WebSocket = require('ws');
+
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '4000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+// NHỮNG DÒNG MỚI ĐƯỢC THÊM VÀO CHO CHỨC NĂNG IOT
+// Khởi tạo WebSocket Server và gắn vào HTTP Server hiện tại
+const wss = new WebSocket.Server({ server });
+
+// 1. Cấu hình Serial Port
+
+const SERIAL_PORT_NAME = 'COM2'; 
+const BAUD_RATE = 9600; 
+
+const serialPort = new SerialPort({ 
+    path: SERIAL_PORT_NAME, 
+    baudRate: BAUD_RATE,
+    autoOpen: false 
+});
+// ...
+
+serialPort.open(function (err) {
+    if (err) {
+        console.error(`Lỗi mở Serial Port ${SERIAL_PORT_NAME}:`, err.message);
+        console.error('Kiểm tra cổng COM ảo và mô phỏng Proteus.');
+        return;
+    }
+    console.log(`✅ Serial Port ${SERIAL_PORT_NAME} đã mở thành công.`);
+});
+
+// Sử dụng parser để chia gói tin bằng ký tự xuống dòng (\n)
+const parser = serialPort.pipe(new ReadlineParser({ delimiter: '\n' })); 
+
+parser.on('data', data => {
+    // Dữ liệu nhận được là chuỗi JSON: {"temp":25,"hum":60}
+    const cleanedData = data.trim(); 
+    
+    try {
+        JSON.parse(cleanedData); // Kiểm tra xem có phải JSON hợp lệ không
+
+        // Gửi dữ liệu real-time qua WebSocket đến tất cả clients
+        wss.clients.forEach(function each(client) {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(cleanedData);
+            }
+        });
+
+    } catch (e) {
+        // Bỏ qua các dòng không phải JSON (ví dụ: thông báo debug)
+        // console.warn('Dữ liệu Serial không phải JSON hợp lệ:', data);
+    }
+});
+
+wss.on('connection', function connection(ws) {
+    console.log('🌐 Một WebApp Client đã kết nối qua WebSocket.');
+});
+
+
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+  
+  // Dòng này thêm cho việc debugging IoT, xác nhận mọi thứ OK
+  console.log(`🚀 Server Express và WebSocket đang chạy trên cổng ${addr.port}`); 
+}

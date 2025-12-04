@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DHT11 Real-time Temperature</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        #data-display { font-size: 2em; margin-bottom: 20px; }
+        #chart-container { width: 80%; max-width: 800px; }
+    </style>
+</head>
+<body>
+    <h1>🌡️ Biểu đồ Nhiệt độ & Độ ẩm Real-time</h1>
+    
+    <div id="data-display">
+        Nhiệt độ: <span id="temp-value">--</span> °C | 
+        Độ ẩm: <span id="hum-value">--</span> %
+    </div>
+
+    <div id="chart-container">
+        <canvas id="tempChart"></canvas>
+    </div>
+
+    <script>
+        const tempValue = document.getElementById('temp-value');
+        const humValue = document.getElementById('hum-value');
+        const MAX_DATA_POINTS = 10; 
+
+        // Khởi tạo Biểu đồ Chart.js
+        const ctx = document.getElementById('tempChart').getContext('2d');
+        const tempChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], 
+                datasets: [
+                    {
+                        label: 'Nhiệt độ (°C)',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Độ ẩm (%)',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        // Kết nối WebSocket
+        const socket = new WebSocket('ws://localhost:<%= port %>'); 
+        
+
+        socket.onopen = () => {
+            console.log('Đã kết nối tới WebSocket Server.');
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                const currentTime = new Date().toLocaleTimeString();
+
+                if (data.temp !== undefined && data.hum !== undefined) {
+                    // 1. Cập nhật giá trị hiển thị
+                    tempValue.textContent = data.temp;
+                    humValue.textContent = data.hum;
+
+                    // 2. Cập nhật Biểu đồ
+                    tempChart.data.labels.push(currentTime);
+                    tempChart.data.datasets[0].data.push(data.temp);
+                    tempChart.data.datasets[1].data.push(data.hum);
+
+                    if (tempChart.data.labels.length > MAX_DATA_POINTS) {
+                        tempChart.data.labels.shift();
+                        tempChart.data.datasets[0].data.shift();
+                        tempChart.data.datasets[1].data.shift();
+                    }
+                    tempChart.update();
+                }
+            } catch (e) {
+                console.error('Lỗi phân tích dữ liệu từ server:', e);
+            }
+        };
+
+        socket.onclose = () => {
+            console.log('Ngắt kết nối WebSocket.');
+        };
+    </script>
+</body>
+</html>
