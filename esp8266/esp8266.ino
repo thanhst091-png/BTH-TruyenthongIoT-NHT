@@ -3,12 +3,12 @@
 #include <ArduinoJson.h>
 
 /* ====== CONFIG ====== */
-const char* ssid        = "Am fine thanh kiu còn you?";
-const char* password    = "khongyeu";
-const char* mqtt_server = "192.168.172.94";
+const char* ssid        = "Mang_lagnhucucai";
+const char* password    = "matkhausai";
+const char* mqtt_server = "192.168.1.111";
 const int   mqtt_port   = 1883;
-const char* mqtt_user   = "cac";
-const char* mqtt_pass   = "1234";
+const char* mqtt_user   = "mqtt-user";
+const char* mqtt_pass   = "123456";
 const char* student_id  = "10123297";
 const char* mqtt_topic  = "iot/lab1/10123297/sensor"; 
 
